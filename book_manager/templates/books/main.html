@@ -1,0 +1,210 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        {% if page == 'home' %}
+            <div class="text-center">
+                <h1>Управление книгами</h1>
+                <p>Книг в базе: <strong>{{ books_count }}</strong></p>
+                <p>Файлов: <strong>{{ files_count }}</strong></p>
+                
+                <div class="mt-4">
+                    <a href="{% url 'add_book' %}" class="btn btn-primary">Добавить книгу</a>
+                    <a href="{% url 'book_list' %}" class="btn btn-success">Смотреть список</a>
+                </div>
+            </div>
+
+        {% elif page == 'book_list' %}
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Список книг ({{ books_count }})</h2>
+                <a href="{% url 'add_book' %}" class="btn btn-primary">➕ Добавить книгу</a>
+            </div>
+            
+            {% if books_count == 0 %}
+                <div class="alert alert-info">
+                    Книг пока нет. <a href="{% url 'add_book' %}">Добавьте первую</a>
+                </div>
+            {% else %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Название</th>
+                                <th>Автор</th>
+                                <th>Год</th>
+                                <th>Жанр</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for book in page_obj %}
+                            <tr>
+                                <td><strong>{{ book.title }}</strong></td>
+                                <td>{{ book.author }}</td>
+                                <td>{{ book.publication_year }}</td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ book.get_genre_display }}</span>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'edit_book' book.id %}" class="btn btn-warning">✏️</a>
+                                        <a href="{% url 'delete_book' book.id %}" class="btn btn-danger">🗑️</a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% if book.description %}
+                            <tr>
+                                <td colspan="5" class="bg-light">
+                                    <small class="text-muted">
+                                        <strong>Описание:</strong> {{ book.description }}
+                                    </small>
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {% if page_obj.has_other_pages %}
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Назад</a>
+                        </li>
+                        {% endif %}
+                        
+                        <li class="page-item active">
+                            <span class="page-link">
+                                Страница {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}
+                            </span>
+                        </li>
+
+                        {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">Вперед</a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            {% endif %}
+
+        {% elif page == 'add_book' %}
+            <h2>Добавить книгу</h2>
+            <form method="post">
+                {% csrf_token %}
+                {% for field in form %}
+                <div class="mb-3">
+                    <label class="form-label">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}
+                    <div class="text-danger">
+                        {% for error in field.errors %}
+                        <small>{{ error }}</small><br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+                <a href="{% url 'book_list' %}" class="btn btn-secondary">Отмена</a>
+            </form>
+
+        {% elif page == 'edit_book' %}
+            <h2>Редактировать книгу: {{ book.title }}</h2>
+            <form method="post">
+                {% csrf_token %}
+                {% for field in form %}
+                <div class="mb-3">
+                    <label class="form-label">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}
+                    <div class="text-danger">
+                        {% for error in field.errors %}
+                        <small>{{ error }}</small><br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+                <a href="{% url 'book_list' %}" class="btn btn-secondary">Отмена</a>
+            </form>
+
+        {% elif page == 'delete_book' %}
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0">Удаление книги</h4>
+                </div>
+                <div class="card-body text-center">
+                    <h5>Вы уверены, что хотите удалить книгу?</h5>
+                    <p class="lead">"{{ book.title }}" - {{ book.author }}</p>
+                    <form method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">Да, удалить</button>
+                        <a href="{% url 'book_list' %}" class="btn btn-secondary">Отмена</a>
+                    </form>
+                </div>
+            </div>
+
+        {% elif page == 'export_books' %}
+            <h2>Экспорт книг</h2>
+            <form method="post">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label">Формат:</label>
+                    <div>
+                        <input type="radio" name="file_type" value="json" checked> JSON
+                        <input type="radio" name="file_type" value="xml" class="ms-3"> XML
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-success">Экспортировать</button>
+            </form>
+
+        {% elif page == 'upload_file' %}
+            <h2>Импорт книг</h2>
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label">Файл:</label>
+                    {{ form.file }}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Тип:</label>
+                    {{ form.file_type }}
+                </div>
+                <button type="submit" class="btn btn-info">Загрузить</button>
+            </form>
+
+        {% elif page == 'file_list' %}
+            <h2>Файлы ({{ files_count }})</h2>
+            
+            {% if files_count == 0 %}
+                <div class="alert alert-info">Файлов нет</div>
+            {% else %}
+                {% for file in files %}
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5>{{ file.name }}</h5>
+                        <p>Размер: {{ file.size }} байт</p>
+                        <pre style="background: #f5f5f5; padding: 10px; border-radius: 5px; font-size: 12px;">{{ file.preview }}</pre>
+                        <a href="{% url 'view_file' file.name %}" class="btn btn-sm btn-primary">Смотреть</a>
+                    </div>
+                </div>
+                {% endfor %}
+            {% endif %}
+
+        {% elif page == 'view_file' %}
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Файл: {{ filename }}</h2>
+                <a href="{% url 'file_list' %}" class="btn btn-secondary">Назад к файлам</a>
+            </div>
+            <pre style="background: #f5f5f5; padding: 15px; border-radius: 5px; max-height: 500px; overflow: auto; font-size: 14px;">{{ content }}</pre>
+
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

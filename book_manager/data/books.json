@@ -1,0 +1,26 @@
+[
+  {
+    "id": 2,
+    "title": "Мастер и Маргарита",
+    "author": "Михаил Булгаков",
+    "isbn": "978-5-699-12345-6",
+    "publication_year": 1967,
+    "genre": "fiction",
+    "publisher": "Эксмо",
+    "page_count": 480,
+    "description": "",
+    "created_at": "2025-10-30T12:50:09.138420+00:00"
+  },
+  {
+    "id": 3,
+    "title": "Мастер и Маргарита",
+    "author": "Михаил Булгаков",
+    "isbn": "978-5-699-12345-6",
+    "publication_year": 1967,
+    "genre": "fiction",
+    "publisher": "Эксмо",
+    "page_count": 480,
+    "description": "",
+    "created_at": "2025-10-31T03:39:40.122929+00:00"
+  }
+]
