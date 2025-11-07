@@ -10,7 +10,7 @@ from .forms import BookForm, FileUploadForm
 from .utils import FileHandler
 
 def home(request):
-    # Автоматически сохраняем книги в JSON при загрузке главной страницы
+    # Сохранение книг
     FileHandler.save_books_to_json()
     
     context = {
@@ -43,7 +43,6 @@ def add_book(request):
         if form.is_valid():
             book = form.save()
             
-            # СОХРАНЯЕМ В JSON ПОСЛЕ ДОБАВЛЕНИЯ КНИГИ
             FileHandler.save_books_to_json()
             
             messages.success(request, f'Книга "{book.title}" добавлена и сохранена в JSON!')
@@ -165,7 +164,7 @@ def upload_file(request):
                         genre=book_data.get('genre', 'other'),
                         publisher=book_data.get('publisher', ''),
                         page_count=book_data.get('page_count'),
-                        description=book_data.get('description', '')
+                        description=book_data.get('description', ''),
                     )
                     imported_count += 1
                 

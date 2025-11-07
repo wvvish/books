@@ -1,26 +1,50 @@
 [
   {
-    "id": 2,
-    "title": "Мастер и Маргарита",
-    "author": "Михаил Булгаков",
+    "id": 4,
+    "title": "ААААА",
+    "author": "АААААА",
     "isbn": "978-5-699-12345-6",
     "publication_year": 1967,
-    "genre": "fiction",
+    "genre": "non_fiction",
     "publisher": "Эксмо",
     "page_count": 480,
     "description": "",
-    "created_at": "2025-10-30T12:50:09.138420+00:00"
+    "created_at": "2025-10-31T04:06:10.899788+00:00"
   },
   {
-    "id": 3,
-    "title": "Мастер и Маргарита",
-    "author": "Михаил Булгаков",
+    "id": 5,
+    "title": "РРРРРР",
+    "author": "РРРРРРРРРРР",
     "isbn": "978-5-699-12345-6",
     "publication_year": 1967,
-    "genre": "fiction",
+    "genre": "fantasy",
     "publisher": "Эксмо",
     "page_count": 480,
     "description": "",
-    "created_at": "2025-10-31T03:39:40.122929+00:00"
+    "created_at": "2025-10-31T04:06:24.482475+00:00"
+  },
+  {
+    "id": 6,
+    "title": "ААААА",
+    "author": "АААААА",
+    "isbn": "978-5-699-12345-6",
+    "publication_year": 1967,
+    "genre": "non_fiction",
+    "publisher": "Эксмо",
+    "page_count": 480,
+    "description": "",
+    "created_at": "2025-10-31T04:09:49.151192+00:00"
+  },
+  {
+    "id": 7,
+    "title": "gggg",
+    "author": "gggggggggggggggggg",
+    "isbn": "978-5-699-12345-6",
+    "publication_year": 6789,
+    "genre": "science",
+    "publisher": "Эксмо",
+    "page_count": 480,
+    "description": "",
+    "created_at": "2025-10-31T04:41:02.412744+00:00"
   }
 ]
