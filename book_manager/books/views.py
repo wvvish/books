@@ -109,8 +109,19 @@ def add_book(request):
         if form.is_valid():
             save_location = form.cleaned_data['save_location']
             
-            # Проверка на дубликаты для БД
-            if save_location in ['db', 'both']:
+            # Для варианта "только файл" - временно сохраняем в БД, потом удаляем
+            temp_book = None
+            if save_location == 'file':
+                # Сохраняем во временную БД чтобы потом экспортировать в файл
+                temp_book = form.save()
+                # Сохраняем все книги (включая новую) в файл
+                FileHandler.save_books_to_json()
+                # Удаляем временную книгу из БД
+                temp_book.delete()
+                messages.success(request, 'Книга сохранена в файл!')
+                
+            elif save_location == 'db':
+                # Проверка на дубликаты для БД
                 duplicate = Book.objects.filter(
                     title=form.cleaned_data['title'],
                     author=form.cleaned_data['author'],
@@ -120,16 +131,25 @@ def add_book(request):
                 if duplicate:
                     messages.error(request, 'Такая книга уже существует в базе данных!')
                     return render(request, 'books/main.html', {'page': 'add_book', 'form': form})
-            
-            # Сохранение в БД если выбрано
-            if save_location in ['db', 'both']:
+                
                 book = form.save()
                 messages.success(request, f'Книга "{book.title}" сохранена в базу данных!')
-            
-            # Сохранение в файл если выбрано
-            if save_location in ['file', 'both']:
+                
+            elif save_location == 'both':
+                # Проверка на дубликаты
+                duplicate = Book.objects.filter(
+                    title=form.cleaned_data['title'],
+                    author=form.cleaned_data['author'], 
+                    publication_year=form.cleaned_data['publication_year']
+                ).exists()
+                
+                if duplicate:
+                    messages.error(request, 'Такая книга уже существует в базе данных!')
+                    return render(request, 'books/main.html', {'page': 'add_book', 'form': form})
+                
+                book = form.save()
                 FileHandler.save_books_to_json()
-                messages.success(request, 'Книга сохранена в файл!')
+                messages.success(request, f'Книга "{book.title}" сохранена и в базу, и в файл!')
             
             return redirect('book_list')
         else:
