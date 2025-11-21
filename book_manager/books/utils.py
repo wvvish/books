@@ -8,19 +8,16 @@ from django.conf import settings
 class FileHandler:
     @staticmethod
     def get_data_path():
-        """Путь к папке с данными"""
         data_dir = os.path.join(settings.BASE_DIR, 'data')
         os.makedirs(data_dir, exist_ok=True)
         return data_dir
 
     @staticmethod
     def get_json_file_path():
-        """Путь к основному JSON файлу"""
         return os.path.join(FileHandler.get_data_path(), 'books.json')
 
     @staticmethod
     def save_books_to_json(books_data=None):
-        """Сохранить книги в JSON файл"""
         if books_data is None:
             from .models import Book
             books = Book.objects.all()
@@ -33,7 +30,7 @@ class FileHandler:
                     'isbn': book.isbn,
                     'publication_year': book.publication_year,
                     'genre': book.genre,
-                    'publisher': book.publisher,
+                    'langua': book.langua,
                     'page_count': book.page_count,
                     'description': book.description,
                     'created_at': book.created_at.isoformat(),
@@ -47,7 +44,6 @@ class FileHandler:
 
     @staticmethod
     def load_books_from_json():
-        """Загрузить книги из JSON файла"""
         file_path = FileHandler.get_json_file_path()
         if os.path.exists(file_path):
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -56,7 +52,6 @@ class FileHandler:
 
     @staticmethod
     def export_to_xml():
-        """Экспорт в XML"""
         from .models import Book
         books = Book.objects.all()
         books_data = []
@@ -67,7 +62,7 @@ class FileHandler:
                 'isbn': book.isbn,
                 'publication_year': book.publication_year,
                 'genre': book.genre,
-                'publisher': book.publisher,
+                'langua': book.langua,
                 'page_count': book.page_count,
                 'description': book.description,
             })
@@ -94,7 +89,6 @@ class FileHandler:
 
     @staticmethod
     def get_all_files():
-        """Получить все файлы"""
         data_dir = FileHandler.get_data_path()
         files = []
         if os.path.exists(data_dir):

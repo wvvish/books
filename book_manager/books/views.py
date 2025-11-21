@@ -1,7 +1,8 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.db.models import Q
 import os
 import json
 
@@ -10,9 +11,7 @@ from .forms import BookForm, FileUploadForm
 from .utils import FileHandler
 
 def home(request):
-    # Сохранение книг
     FileHandler.save_books_to_json()
-    
     context = {
         'page': 'home',
         'books_count': Book.objects.count(),
@@ -21,10 +20,47 @@ def home(request):
     return render(request, 'books/main.html', context)
 
 def book_list(request):
-    books = Book.objects.all().order_by('-created_at')
-    
-    # Сохраняем в JSON при просмотре списка
-    FileHandler.save_books_to_json()
+    source = request.GET.get('source', 'db')
+    query = request.GET.get('q', '')
+
+    if source == 'file':
+        books_data = FileHandler.load_books_from_json()
+        books = []
+        for book_data in books_data:
+            class BookLikeObject:
+                def __init__(self, data):
+                    self.id = data.get('id')
+                    self.title = data.get('title', '')
+                    self.author = data.get('author', '')
+                    self.isbn = data.get('isbn', '')
+                    self.publication_year = data.get('publication_year')
+                    self.genre = data.get('genre', 'other')
+                    self.langua = data.get('langua', 'Русский')
+                    self.page_count = data.get('page_count')
+                    self.description = data.get('description', '')
+                    self.created_at = data.get('created_at')
+                
+                def get_genre_display(self):
+                    genre_dict = dict(Book.GENRE_CHOICES)
+                    return genre_dict.get(self.genre, self.genre)
+            
+            books.append(BookLikeObject(book_data))
+        
+        if query:
+            books = [b for b in books if query.lower() in b.title.lower() or query.lower() in b.author.lower()]
+        
+        books.sort(key=lambda x: x.created_at if x.created_at else '', reverse=True)
+    else:
+        if query:
+            books = Book.objects.filter(
+                Q(title__icontains=query) | 
+                Q(author__icontains=query) |
+                Q(description__icontains=query)
+            ).order_by('-created_at')
+        else:
+            books = Book.objects.all().order_by('-created_at')
+        
+        FileHandler.save_books_to_json()
     
     paginator = Paginator(books, 10)
     page_number = request.GET.get('page')
@@ -33,72 +69,109 @@ def book_list(request):
     context = {
         'page': 'book_list',
         'page_obj': page_obj,
-        'books_count': books.count()
+        'books_count': len(books) if source == 'file' else books.count(),
+        'current_source': source,
+        'search_query': query
     }
     return render(request, 'books/main.html', context)
+
+def search_books_ajax(request):
+    """AJAX поиск книг - возвращает JSON"""
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        query = request.GET.get('q', '')
+        if query:
+            books = Book.objects.filter(
+                Q(title__icontains=query) | 
+                Q(author__icontains=query) |
+                Q(description__icontains=query)
+            )[:10]
+            
+            results = []
+            for book in books:
+                results.append({
+                    'id': book.id,
+                    'title': book.title,
+                    'author': book.author,
+                    'publication_year': book.publication_year,
+                    'genre': book.get_genre_display(),
+                    'langua': book.langua,
+                    'edit_url': f"/books/{book.id}/edit/",
+                    'delete_url': f"/books/{book.id}/delete/"
+                })
+            
+            return JsonResponse(results, safe=False)
+    
+    return JsonResponse([], safe=False)
 
 def add_book(request):
     if request.method == 'POST':
         form = BookForm(request.POST)
         if form.is_valid():
-            book = form.save()
+            save_location = form.cleaned_data['save_location']
+            book_data = form.cleaned_data
             
-            FileHandler.save_books_to_json()
+            # Проверка на дубликаты для БД
+            if save_location in ['db', 'both']:
+                duplicate = Book.objects.filter(
+                    title=book_data['title'],
+                    author=book_data['author'],
+                    publication_year=book_data['publication_year']
+                ).exists()
+                
+                if duplicate:
+                    messages.error(request, 'Такая книга уже существует в базе данных!')
+                    return render(request, 'books/main.html', {'page': 'add_book', 'form': form})
             
-            messages.success(request, f'Книга "{book.title}" добавлена и сохранена в JSON!')
+            # Сохранение в выбранное место
+            if save_location in ['db', 'both']:
+                book = form.save()
+                messages.success(request, f'Книга "{book.title}" сохранена в базу данных!')
+            
+            if save_location in ['file', 'both']:
+                FileHandler.save_books_to_json()
+                messages.success(request, f'Книга сохранена в файл!')
+            
             return redirect('book_list')
+        else:
+            context = {'page': 'add_book', 'form': form}
+            return render(request, 'books/main.html', context)
     else:
         form = BookForm()
     
-    context = {
-        'page': 'add_book',
-        'form': form
-    }
+    context = {'page': 'add_book', 'form': form}
     return render(request, 'books/main.html', context)
 
 def edit_book(request, book_id):
-    """Редактировать книгу"""
     book = get_object_or_404(Book, id=book_id)
     
     if request.method == 'POST':
         form = BookForm(request.POST, instance=book)
         if form.is_valid():
             form.save()
-            
-            # Обновляем JSON файл после редактирования
             FileHandler.save_books_to_json()
-            
             messages.success(request, f'Книга "{book.title}" успешно обновлена!')
             return redirect('book_list')
+        else:
+            context = {'page': 'edit_book', 'form': form, 'book': book}
+            return render(request, 'books/main.html', context)
     else:
         form = BookForm(instance=book)
+        form.fields.pop('save_location', None)
     
-    context = {
-        'page': 'edit_book',
-        'form': form,
-        'book': book
-    }
+    context = {'page': 'edit_book', 'form': form, 'book': book}
     return render(request, 'books/main.html', context)
 
 def delete_book(request, book_id):
-    """Удалить книгу"""
     book = get_object_or_404(Book, id=book_id)
     
     if request.method == 'POST':
         book_title = book.title
         book.delete()
-        
-        # Обновляем JSON файл после удаления
         FileHandler.save_books_to_json()
-        
         messages.success(request, f'Книга "{book_title}" успешно удалена!')
         return redirect('book_list')
     
-    # Если GET запрос, показываем страницу подтверждения
-    context = {
-        'page': 'delete_book',
-        'book': book
-    }
+    context = {'page': 'delete_book', 'book': book}
     return render(request, 'books/main.html', context)
 
 def export_books(request):
@@ -110,7 +183,7 @@ def export_books(request):
                 file_path = FileHandler.save_books_to_json()
                 content_type = 'application/json'
                 filename = 'books.json'
-            else:  # xml
+            else:
                 file_path = FileHandler.export_to_xml()
                 content_type = 'application/xml'
                 filename = os.path.basename(file_path)
@@ -137,13 +210,11 @@ def upload_file(request):
             file_type = form.cleaned_data['file_type']
             
             try:
-                # Читаем файл
                 content = file.read().decode('utf-8')
                 
                 if file_type == 'json':
                     books_data = json.loads(content)
                 else:
-                    # Для XML потребуется парсинг (упрощенная версия)
                     import xml.etree.ElementTree as ET
                     root = ET.fromstring(content)
                     books_data = []
@@ -153,7 +224,6 @@ def upload_file(request):
                             book_data[child.tag] = child.text
                         books_data.append(book_data)
                 
-                # Сохраняем книги в базу
                 imported_count = 0
                 for book_data in books_data:
                     Book.objects.create(
@@ -162,34 +232,31 @@ def upload_file(request):
                         isbn=book_data.get('isbn', ''),
                         publication_year=int(book_data['publication_year']),
                         genre=book_data.get('genre', 'other'),
-                        publisher=book_data.get('publisher', ''),
+                        langua=book_data.get('langua', 'Русский'),
                         page_count=book_data.get('page_count'),
                         description=book_data.get('description', ''),
                     )
                     imported_count += 1
                 
-                # Сохраняем в JSON после импорта
                 FileHandler.save_books_to_json()
-                
                 messages.success(request, f'Импортировано {imported_count} книг!')
                 
             except Exception as e:
                 messages.error(request, f'Ошибка: {str(e)}')
             
             return redirect('upload_file')
+        else:
+            context = {'page': 'upload_file', 'form': form}
+            return render(request, 'books/main.html', context)
     else:
         form = FileUploadForm()
     
-    context = {
-        'page': 'upload_file',
-        'form': form
-    }
+    context = {'page': 'upload_file', 'form': form}
     return render(request, 'books/main.html', context)
 
 def file_list(request):
     files = FileHandler.get_all_files()
     
-    # Читаем содержимое файлов для предпросмотра
     for file_info in files:
         try:
             with open(file_info['path'], 'r', encoding='utf-8') as f:

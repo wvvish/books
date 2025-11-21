@@ -64,3 +64,15 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Настройки для PythonAnywhere
+DEBUG = False
+ALLOWED_HOSTS = ['wvvish.pythonanywhere.com']
+
+# Статические файлы
+STATIC_ROOT = '/home/wvvish/book_manager/static'
+STATIC_URL = '/static/'
+
+# Медиа файлы (если нужно)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = '/home/wvvish/book_manager/media'

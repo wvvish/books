@@ -1,6 +1,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator
 from django.urls import reverse
+from django.core.exceptions import ValidationError
 import re
 
 def validate_isbn(value):
@@ -37,8 +38,8 @@ class Book(models.Model):
     isbn = models.CharField(max_length=17, verbose_name="ISBN", blank=True, null=True)
     publication_year = models.IntegerField(verbose_name="Год издания")
     genre = models.CharField(max_length=20, choices=GENRE_CHOICES, verbose_name="Жанр")
-    publisher = models.CharField(max_length=100, verbose_name="Издательство", blank=True, null=True)
     page_count = models.IntegerField(verbose_name="Страниц", null=True, blank=True)
+    langua = models.CharField(max_length=17, verbose_name="Язык", blank=True, null=True)
     description = models.TextField(verbose_name="Описание", blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
