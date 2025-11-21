@@ -108,28 +108,28 @@ def add_book(request):
         form = BookForm(request.POST)
         if form.is_valid():
             save_location = form.cleaned_data['save_location']
-            book_data = form.cleaned_data
             
             # Проверка на дубликаты для БД
             if save_location in ['db', 'both']:
                 duplicate = Book.objects.filter(
-                    title=book_data['title'],
-                    author=book_data['author'],
-                    publication_year=book_data['publication_year']
+                    title=form.cleaned_data['title'],
+                    author=form.cleaned_data['author'],
+                    publication_year=form.cleaned_data['publication_year']
                 ).exists()
                 
                 if duplicate:
                     messages.error(request, 'Такая книга уже существует в базе данных!')
                     return render(request, 'books/main.html', {'page': 'add_book', 'form': form})
             
-            # Сохранение в выбранное место
+            # Сохранение в БД если выбрано
             if save_location in ['db', 'both']:
                 book = form.save()
                 messages.success(request, f'Книга "{book.title}" сохранена в базу данных!')
             
+            # Сохранение в файл если выбрано
             if save_location in ['file', 'both']:
                 FileHandler.save_books_to_json()
-                messages.success(request, f'Книга сохранена в файл!')
+                messages.success(request, 'Книга сохранена в файл!')
             
             return redirect('book_list')
         else:
