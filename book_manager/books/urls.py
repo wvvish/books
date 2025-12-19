@@ -11,4 +11,5 @@ urlpatterns = [
     path('upload/', views.upload_file, name='upload_file'),
     path('files/', views.file_list, name='file_list'),
     path('files/<str:filename>/', views.view_file, name='view_file'),
+    path('search/ajax/', views.search_books_ajax, name='search_books_ajax'),
 ]

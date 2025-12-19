@@ -2,22 +2,25 @@ from django import forms
 from .models import Book
 
 class BookForm(forms.ModelForm):
+    # Варианты выбора места сохранения
     SAVE_CHOICES = [
-        ('db', 'Сохранить в базу данных'),
-        ('file', 'Сохранить в файл'),
-        ('both', 'Сохранить и в базу, и в файл'),
+        ('db', 'Сохранить в базу данных'),      
+        ('file', 'Сохранить в файл'),          
+        ('both', 'Сохранить и в базу, и в файл') 
     ]
     
+    # Поле выбора с радиокнопками
     save_location = forms.ChoiceField(
-        choices=SAVE_CHOICES,
-        widget=forms.RadioSelect(),
-        initial='both',
-        label='Куда сохранить данные?',
-        required=True
+        choices=SAVE_CHOICES,           # Варианты выбора
+        widget=forms.RadioSelect(),     # Отображение радиокнопками
+        initial='both',                 # Значение по умолчанию
+        label='Куда сохранить данные?', # Подпись поля
+        required=True                   # Обязательное поле
     )
     
     class Meta:
         model = Book
+        # Поля формы для ввода данных книги
         fields = ['title', 'author', 'isbn', 'publication_year', 'genre', 'page_count', 'langua', 'description']
         
         widgets = {

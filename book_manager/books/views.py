@@ -1,10 +1,13 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, JsonResponse
 from django.contrib import messages
+from django.views.decorators.csrf import csrf_exempt
 from django.core.paginator import Paginator
 from django.db.models import Q
 import os
 import json
+import random
+from datetime import datetime
 
 from .models import Book
 from .forms import BookForm, FileUploadForm
@@ -39,33 +42,31 @@ def book_list(request):
                     self.page_count = data.get('page_count')
                     self.description = data.get('description', '')
                     self.created_at = data.get('created_at')
-                
+
                 def get_genre_display(self):
                     genre_dict = dict(Book.GENRE_CHOICES)
                     return genre_dict.get(self.genre, self.genre)
-            
+
             books.append(BookLikeObject(book_data))
-        
+
         if query:
             books = [b for b in books if query.lower() in b.title.lower() or query.lower() in b.author.lower()]
-        
+
         books.sort(key=lambda x: x.created_at if x.created_at else '', reverse=True)
     else:
         if query:
             books = Book.objects.filter(
-                Q(title__icontains=query) | 
+                Q(title__icontains=query) |
                 Q(author__icontains=query) |
                 Q(description__icontains=query)
             ).order_by('-created_at')
         else:
             books = Book.objects.all().order_by('-created_at')
-        
-        FileHandler.save_books_to_json()
-    
+
     paginator = Paginator(books, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
-    
+
     context = {
         'page': 'book_list',
         'page_obj': page_obj,
@@ -75,95 +76,166 @@ def book_list(request):
     }
     return render(request, 'books/main.html', context)
 
+from django.http import JsonResponse
+from django.db.models import Q
+from django.views.decorators.csrf import csrf_exempt
+from .utils import FileHandler
+
+@csrf_exempt
 def search_books_ajax(request):
-    """AJAX поиск книг - возвращает JSON"""
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        query = request.GET.get('q', '')
-        if query:
-            books = Book.objects.filter(
-                Q(title__icontains=query) | 
-                Q(author__icontains=query) |
-                Q(description__icontains=query)
-            )[:10]
-            
-            results = []
-            for book in books:
-                results.append({
-                    'id': book.id,
-                    'title': book.title,
-                    'author': book.author,
-                    'publication_year': book.publication_year,
-                    'genre': book.get_genre_display(),
-                    'langua': book.langua,
-                    'edit_url': f"/books/{book.id}/edit/",
-                    'delete_url': f"/books/{book.id}/delete/"
-                })
-            
-            return JsonResponse(results, safe=False)
+    if request.headers.get('X-Requested-With') != 'XMLHttpRequest':
+        return JsonResponse({'error': 'Invalid request'}, status=400) #некорректный запрос - ошибка
     
-    return JsonResponse([], safe=False)
+    # q - Ключ, по которому извлекается значение из request.GET
+    query = request.GET.get('q', '').strip() # Получаем поисковый запрос, убираем пробелы
+
+    # Если запрос слишком короткий
+    if len(query) < 2:
+        return JsonResponse([], safe=False) # Возвращаем пустой список
+    
+    # Для всех найденных книг
+    results = []
+
+    try:
+        # Поиск в базе данных
+        db_books = Book.objects.filter( # Cтандартный способ фильтрации записей в Django.
+            Q(title__icontains=query) | 
+            Q(author__icontains=query) |
+            Q(description__icontains=query) |
+            Q(isbn__icontains=query) |
+            Q(genre__icontains=query) |
+            Q(langua__icontains=query)
+        )[:10]  # Ограничиваем 10 результатами из БД
+
+        for book in db_books:
+            results.append({
+                'id': book.id,
+                'title': book.title,
+                'author': book.author,
+                'publication_year': book.publication_year,
+                'genre': book.get_genre_display(),
+                'langua': book.langua or '',
+                'edit_url': f"/books/{book.id}/edit/",
+                'delete_url': f"/books/{book.id}/delete/",
+                'source': 'db'
+            })
+
+        # 2. Поиск в файле
+        try:
+            books_from_file = FileHandler.load_books_from_json()
+
+            for book_data in books_from_file:
+                # Проверяем совпадения
+                title_match = query.lower() in str(book_data.get('title', '')).lower()
+                author_match = query.lower() in str(book_data.get('author', '')).lower()
+
+                if title_match or author_match:
+                    # Получаем читаемое название жанра
+                    # Преобразуем внутреннее значение жанра (например, "fantasy") в читаемое название 
+                    genre = book_data.get('genre', 'other')
+                    genre_display = dict(Book.GENRE_CHOICES).get(genre, genre)
+
+                    book_id = book_data.get('id', 0)
+                    results.append({
+                        'id': book_id,
+                        'title': book_data.get('title', ''),
+                        'author': book_data.get('author', ''),
+                        'publication_year': book_data.get('publication_year', ''),
+                        'genre': genre_display,
+                        'langua': book_data.get('langua', ''),
+                        'edit_url': f"/books/{book_id}/edit/" if book_id else '#',
+                        'delete_url': f"/books/{book_id}/delete/" if book_id else '#',
+                        'source': 'file'
+                    })
+
+                    if len(results) >= 15:  # Общее ограничение
+                        break
+
+        except Exception as e:
+            print(f"Ошибка при поиске в файле: {e}")
+            # Продолжаем работу
+
+    except Exception as e:
+        print(f"Ошибка в поиске: {e}")
+        return JsonResponse([], safe=False)
+
+    return JsonResponse(results[:15], safe=False)  
 
 def add_book(request):
     if request.method == 'POST':
         form = BookForm(request.POST)
         if form.is_valid():
             save_location = form.cleaned_data['save_location']
-            
-            # Для варианта "только файл" - временно сохраняем в БД, потом удаляем
-            temp_book = None
+
             if save_location == 'file':
-                # Сохраняем во временную БД чтобы потом экспортировать в файл
-                temp_book = form.save()
-                # Сохраняем все книги (включая новую) в файл
-                FileHandler.save_books_to_json()
-                # Удаляем временную книгу из БД
-                temp_book.delete()
+                # Сохраняем только в файл
+                file_path = FileHandler.get_json_file_path()
+                existing_books = FileHandler.load_books_from_json()
+
+                new_book = {
+                    'id': random.randint(1000, 9999),
+                    'title': form.cleaned_data['title'],
+                    'author': form.cleaned_data['author'],
+                    'isbn': form.cleaned_data['isbn'],
+                    'publication_year': form.cleaned_data['publication_year'],
+                    'genre': form.cleaned_data['genre'],
+                    'langua': form.cleaned_data['langua'],
+                    'page_count': form.cleaned_data['page_count'],
+                    'description': form.cleaned_data['description'],
+                    'created_at': datetime.now().isoformat(),
+                }
+
+                existing_books.append(new_book)
+
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(existing_books, f, ensure_ascii=False, indent=2)
+
                 messages.success(request, 'Книга сохранена в файл!')
-                
+
             elif save_location == 'db':
-                # Проверка на дубликаты для БД
+                # Сохраняем только в БД
                 duplicate = Book.objects.filter(
                     title=form.cleaned_data['title'],
                     author=form.cleaned_data['author'],
                     publication_year=form.cleaned_data['publication_year']
                 ).exists()
-                
+
                 if duplicate:
                     messages.error(request, 'Такая книга уже существует в базе данных!')
                     return render(request, 'books/main.html', {'page': 'add_book', 'form': form})
-                
+
                 book = form.save()
                 messages.success(request, f'Книга "{book.title}" сохранена в базу данных!')
-                
+
             elif save_location == 'both':
-                # Проверка на дубликаты
+                # Сохраняем в оба места
                 duplicate = Book.objects.filter(
                     title=form.cleaned_data['title'],
-                    author=form.cleaned_data['author'], 
+                    author=form.cleaned_data['author'],
                     publication_year=form.cleaned_data['publication_year']
                 ).exists()
-                
+
                 if duplicate:
                     messages.error(request, 'Такая книга уже существует в базе данных!')
                     return render(request, 'books/main.html', {'page': 'add_book', 'form': form})
-                
+
                 book = form.save()
                 FileHandler.save_books_to_json()
                 messages.success(request, f'Книга "{book.title}" сохранена и в базу, и в файл!')
-            
+
             return redirect('book_list')
         else:
             context = {'page': 'add_book', 'form': form}
             return render(request, 'books/main.html', context)
     else:
         form = BookForm()
-    
+
     context = {'page': 'add_book', 'form': form}
     return render(request, 'books/main.html', context)
 
 def edit_book(request, book_id):
     book = get_object_or_404(Book, id=book_id)
-    
+
     if request.method == 'POST':
         form = BookForm(request.POST, instance=book)
         if form.is_valid():
@@ -177,27 +249,27 @@ def edit_book(request, book_id):
     else:
         form = BookForm(instance=book)
         form.fields.pop('save_location', None)
-    
+
     context = {'page': 'edit_book', 'form': form, 'book': book}
     return render(request, 'books/main.html', context)
 
 def delete_book(request, book_id):
     book = get_object_or_404(Book, id=book_id)
-    
+
     if request.method == 'POST':
         book_title = book.title
         book.delete()
         FileHandler.save_books_to_json()
         messages.success(request, f'Книга "{book_title}" успешно удалена!')
         return redirect('book_list')
-    
+
     context = {'page': 'delete_book', 'book': book}
     return render(request, 'books/main.html', context)
 
 def export_books(request):
     if request.method == 'POST':
         file_type = request.POST.get('file_type')
-        
+
         try:
             if file_type == 'json':
                 file_path = FileHandler.save_books_to_json()
@@ -207,15 +279,15 @@ def export_books(request):
                 file_path = FileHandler.export_to_xml()
                 content_type = 'application/xml'
                 filename = os.path.basename(file_path)
-            
+
             with open(file_path, 'rb') as f:
                 response = HttpResponse(f.read(), content_type=content_type)
                 response['Content-Disposition'] = f'attachment; filename="{filename}"'
                 return response
-                
+
         except Exception as e:
             messages.error(request, f'Ошибка: {str(e)}')
-    
+
     context = {
         'page': 'export_books',
         'books_count': Book.objects.count()
@@ -228,10 +300,10 @@ def upload_file(request):
         if form.is_valid():
             file = request.FILES['file']
             file_type = form.cleaned_data['file_type']
-            
+
             try:
                 content = file.read().decode('utf-8')
-                
+
                 if file_type == 'json':
                     books_data = json.loads(content)
                 else:
@@ -243,7 +315,7 @@ def upload_file(request):
                         for child in book_elem:
                             book_data[child.tag] = child.text
                         books_data.append(book_data)
-                
+
                 imported_count = 0
                 for book_data in books_data:
                     Book.objects.create(
@@ -257,26 +329,26 @@ def upload_file(request):
                         description=book_data.get('description', ''),
                     )
                     imported_count += 1
-                
+
                 FileHandler.save_books_to_json()
                 messages.success(request, f'Импортировано {imported_count} книг!')
-                
+
             except Exception as e:
                 messages.error(request, f'Ошибка: {str(e)}')
-            
+
             return redirect('upload_file')
         else:
             context = {'page': 'upload_file', 'form': form}
             return render(request, 'books/main.html', context)
     else:
         form = FileUploadForm()
-    
+
     context = {'page': 'upload_file', 'form': form}
     return render(request, 'books/main.html', context)
 
 def file_list(request):
     files = FileHandler.get_all_files()
-    
+
     for file_info in files:
         try:
             with open(file_info['path'], 'r', encoding='utf-8') as f:
@@ -284,7 +356,7 @@ def file_list(request):
                 file_info['preview'] = content[:200] + '...' if len(content) > 200 else content
         except:
             file_info['preview'] = 'Не удалось прочитать файл'
-    
+
     context = {
         'page': 'file_list',
         'files': files,
@@ -295,11 +367,11 @@ def file_list(request):
 def view_file(request, filename):
     data_dir = FileHandler.get_data_path()
     file_path = os.path.join(data_dir, filename)
-    
+
     if os.path.exists(file_path):
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
-        
+
         context = {
             'page': 'view_file',
             'filename': filename,

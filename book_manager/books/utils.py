@@ -8,13 +8,16 @@ from django.conf import settings
 class FileHandler:
     @staticmethod
     def get_data_path():
-        data_dir = os.path.join(settings.BASE_DIR, 'data')
+        # Используем DATA_ROOT из настроек
+        data_dir = settings.DATA_ROOT
         os.makedirs(data_dir, exist_ok=True)
         return data_dir
 
     @staticmethod
     def get_json_file_path():
         return os.path.join(FileHandler.get_data_path(), 'books.json')
+
+    # Остальной код остается без изменений...
 
     @staticmethod
     def save_books_to_json(books_data=None):
@@ -35,11 +38,10 @@ class FileHandler:
                     'description': book.description,
                     'created_at': book.created_at.isoformat(),
                 })
-        
+
         file_path = FileHandler.get_json_file_path()
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(books_data, f, ensure_ascii=False, indent=2)
-        
         return file_path
 
     @staticmethod
@@ -66,10 +68,10 @@ class FileHandler:
                 'page_count': book.page_count,
                 'description': book.description,
             })
-        
+
         data_dir = FileHandler.get_data_path()
         file_path = os.path.join(data_dir, f'books_export_{uuid.uuid4().hex[:8]}.xml')
-        
+
         root = ET.Element('books')
         for book_data in books_data:
             book_elem = ET.SubElement(root, 'book')
@@ -77,14 +79,13 @@ class FileHandler:
                 if value is not None:
                     child = ET.SubElement(book_elem, key)
                     child.text = str(value)
-        
+
         xml_str = ET.tostring(root, encoding='utf-8')
         parsed_xml = minidom.parseString(xml_str)
         pretty_xml = parsed_xml.toprettyxml(indent="  ")
-        
+
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(pretty_xml)
-        
         return file_path
 
     @staticmethod
