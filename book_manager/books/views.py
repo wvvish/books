@@ -96,6 +96,8 @@ def search_books_ajax(request):
     # Для всех найденных книг
     results = []
 
+    
+    # начало блока обработки исключений в Python.
     try:
         # Поиск в базе данных
         db_books = Book.objects.filter( # Cтандартный способ фильтрации записей в Django.
@@ -107,6 +109,7 @@ def search_books_ajax(request):
             Q(langua__icontains=query)
         )[:10]  # Ограничиваем 10 результатами из БД
 
+        # Преобразует найденные книги из бд с нужными полями 
         for book in db_books:
             results.append({
                 'id': book.id,
@@ -115,27 +118,32 @@ def search_books_ajax(request):
                 'publication_year': book.publication_year,
                 'genre': book.get_genre_display(),
                 'langua': book.langua or '',
-                'edit_url': f"/books/{book.id}/edit/",
+                'edit_url': f"/books/{book.id}/edit/", # даёт путь вида, по которому отправляется запрос, чтобы открыть форму редактирования книги
                 'delete_url': f"/books/{book.id}/delete/",
                 'source': 'db'
             })
 
         # 2. Поиск в файле
         try:
-            books_from_file = FileHandler.load_books_from_json()
+            books_from_file = FileHandler.load_books_from_json() 
+            # load_books_from_json() — статический или классовый метод, открывает json файл, читает и возвращает
 
             for book_data in books_from_file:
-                # Проверяем совпадения
+                # Проверяем совпадения 
+                # Получает значение по ключу титл
                 title_match = query.lower() in str(book_data.get('title', '')).lower()
                 author_match = query.lower() in str(book_data.get('author', '')).lower()
 
+                # Если совпадают один из них:
                 if title_match or author_match:
-                    # Получаем читаемое название жанра
-                    # Преобразуем внутреннее значение жанра (например, "fantasy") в читаемое название 
                     genre = book_data.get('genre', 'other')
+                    # Если его нет — используем 'other' (значение по умолчанию)
+                    # Преобразует список в словарь, преобразуем внутреннее значение жанра (например, "fantasy") в читаемое название 
                     genre_display = dict(Book.GENRE_CHOICES).get(genre, genre)
 
+                    # Получаем id книги из json
                     book_id = book_data.get('id', 0)
+                    # Добавляем новую карточку книги в общий список результатов
                     results.append({
                         'id': book_id,
                         'title': book_data.get('title', ''),
@@ -158,7 +166,8 @@ def search_books_ajax(request):
     except Exception as e:
         print(f"Ошибка в поиске: {e}")
         return JsonResponse([], safe=False)
-
+    
+    # Отправляет первые 15 найденных книг в формате JSON
     return JsonResponse(results[:15], safe=False)  
 
 def add_book(request):

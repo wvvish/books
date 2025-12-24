@@ -59,15 +59,15 @@ TEMPLATES = [
 # Используем PostgreSQL в Docker, SQLite локально
 if os.environ.get('DOCKER_CONTAINER'):
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.environ.get('POSTGRES_DB', 'bookdb'),
-            'USER': os.environ.get('POSTGRES_USER', 'bookuser'),
-            'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'bookpass'),
-            'HOST': 'db',
-            'PORT': '5432',
-        }
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('POSTGRES_DB'),
+        'USER': os.getenv('POSTGRES_USER'),
+        'PASSWORD': os.getenv('POSTGRES_PASSWORD'),
+        'HOST': 'db',  # ← обязательно 'db'
+        'PORT': '5432',
     }
+}
 else:
     DATABASES = {
         'default': {
